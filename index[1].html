@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Personal Expense Tracker</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: Arial, sans-serif; font-size: 20px; background: #eef2f7; color: #1f2937; }
+  .container { max-width: 900px; margin: 0 auto; padding: 20px; }
+  h1 { text-align: center; font-size: 36px; }
+  h2 { font-size: 26px; margin-top: 0; }
+  .card { background: #fff; border-radius: 14px; padding: 22px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+  .total { display: flex; justify-content: space-between; align-items: center; font-size: 26px; }
+  .total strong { font-size: 34px; color: #2563eb; }
+  input, select { width: 100%; padding: 14px; margin-bottom: 14px; font-size: 20px; border: 2px solid #cbd5e1; border-radius: 10px; }
+  label { font-size: 18px; font-weight: bold; }
+  button { width: 100%; padding: 15px; font-size: 22px; font-weight: bold; color: #fff; background: #2563eb; border: none; border-radius: 10px; cursor: pointer; }
+  button.grey { background: #64748b; }
+  button.del { width: auto; padding: 8px 14px; font-size: 16px; background: #dc2626; }
+  .wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { padding: 14px; text-align: left; border-bottom: 1px solid #e2e8f0; font-size: 20px; }
+  th { background: #e8eefc; }
+  .empty { text-align: center; color: #64748b; }
+  #msg { font-size: 18px; margin: 10px 0 0; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Personal Expense Tracker</h1>
+
+  <div class="card total"><span>Total Spent</span><strong id="total">₹0.00</strong></div>
+
+  <div class="card">
+    <h2>Add Expense</h2>
+    <input type="text" id="title" placeholder="Expense name">
+    <input type="number" id="amount" placeholder="Amount (₹)" min="0" step="0.01">
+    <select id="category">
+      <option>Food</option><option>Travel</option><option>Shopping</option>
+      <option>Bills</option><option>Health</option><option>Other</option>
+    </select>
+    <input type="date" id="date">
+    <button id="addBtn">Add Expense</button>
+    <p id="msg"></p>
+  </div>
+
+  <div class="card">
+    <h2>Filters</h2>
+    <select id="fCategory">
+      <option value="">All Categories</option>
+      <option>Food</option><option>Travel</option><option>Shopping</option>
+      <option>Bills</option><option>Health</option><option>Other</option>
+    </select>
+    <label>From</label><input type="date" id="fFrom">
+    <label>To</label><input type="date" id="fTo">
+    <button id="clearBtn" class="grey">Clear Filters</button>
+  </div>
+
+  <div class="card wrap">
+    <table>
+      <thead><tr><th>Date</th><th>Expense</th><th>Category</th><th>Amount</th><th></th></tr></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const KEY = 'expenses';
+
+function getAll() {
+  try { return JSON.parse(localStorage.getItem(KEY)) || []; }
+  catch (e) { return []; }
+}
+function saveAll(list) {
+  localStorage.setItem(KEY, JSON.stringify(list));
+}
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+$('date').value = new Date().toISOString().slice(0, 10);
+
+function render() {
+  const cat = $('fCategory').value;
+  const from = $('fFrom').value;
+  const to = $('fTo').value;
+
+  let list = getAll().filter((e) =>
+    (!cat || e.category === cat) &&
+    (!from || e.date >= from) &&
+    (!to || e.date <= to)
+  );
+  list.sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id);
+
+  if (list.length === 0) {
+    $('tbody').innerHTML = '<tr><td colspan="5" class="empty">No expenses found</td></tr>';
+    $('total').textContent = '₹0.00';
+    return;
+  }
+
+  let total = 0;
+  $('tbody').innerHTML = list.map((e) => {
+    total += e.amount;
+    return '<tr><td>' + esc(e.date) + '</td><td>' + esc(e.title) + '</td><td>' +
+      esc(e.category) + '</td><td>₹' + e.amount.toFixed(2) +
+      '</td><td><button class="del" onclick="removeExpense(' + e.id + ')">Delete</button></td></tr>';
+  }).join('');
+  $('total').textContent = '₹' + total.toFixed(2);
+}
+
+function addExpense() {
+  const title = $('title').value.trim();
+  const amount = Number($('amount').value);
+  const category = $('category').value;
+  const date = $('date').value;
+  const msg = $('msg');
+
+  if (!title || !(amount > 0) || !date) {
+    msg.textContent = 'Please fill all fields correctly';
+    msg.style.color = 'red';
+    return;
+  }
+
+  const list = getAll();
+  list.push({ id: Date.now(), title, amount, category, date });
+  saveAll(list);
+
+  $('title').value = '';
+  $('amount').value = '';
+  msg.textContent = 'Expense added!';
+  msg.style.color = 'green';
+  render();
+}
+
+function removeExpense(id) {
+  if (!confirm('Delete this expense?')) return;
+  saveAll(getAll().filter((e) => e.id !== id));
+  render();
+}
+
+$('addBtn').addEventListener('click', addExpense);
+['fCategory', 'fFrom', 'fTo'].forEach((id) => $(id).addEventListener('change', render));
+$('clearBtn').addEventListener('click', () => {
+  $('fCategory').value = '';
+  $('fFrom').value = '';
+  $('fTo').value = '';
+  render();
+});
+
+render();
+</script>
+</body>
+</html>
